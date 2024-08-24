@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 import { DatabaseService } from 'src/database/database.service';
@@ -6,26 +6,43 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class TodoService {
-  constructor(private readonly databaseService: DatabaseService){}
+  constructor(private readonly databaseService: DatabaseService) {}
 
-  async create(createTodoDto: CreateTodoDto): Promise<any> {
+  async create(
+    createTodoDto: CreateTodoDto,
+    userEmail: string,
+  ): Promise<CreateTodoDto> {
     try {
-      const data: Prisma.TodoCreateInput = {
-        description: createTodoDto.description,
+      const user = await this.databaseService.user.findFirst({
+        where: { email: userEmail },
+      });
+
+      if (!user) {
+        throw new NotFoundException('User Not Found!');
+      }
+
+      let data: Prisma.TodoCreateInput = {
         task: createTodoDto.task,
+        description: createTodoDto.description,
         status: 'ACTIVE',
+        user: {
+          connect: { email: user.email },
+        },
       };
       console.log(data);
       return await this.databaseService.todo.create({ data });
     } catch (error) {
-      console.log(error)
       return error;
     }
   }
 
-  async findAll(): Promise<any> {
+  async findAll(userEmail: string): Promise<any> {
     try {
-      return await this.databaseService.todo.findMany();
+      return await this.databaseService.todo.findMany({
+        where: {
+          userEmail: userEmail,
+        },
+      });
     } catch (error) {
       return error;
     }
@@ -33,26 +50,26 @@ export class TodoService {
 
   async findOne(id: number): Promise<any> {
     return this.databaseService.todo.findFirst({
-      where:{
-        id: id
-      }
+      where: {
+        id: id,
+      },
     });
   }
 
   async update(id: number, updateTodoDto: UpdateTodoDto): Promise<any> {
     return await this.databaseService.todo.update({
       where: {
-        id: id
+        id: id,
       },
-      data: updateTodoDto
+      data: updateTodoDto,
     });
   }
 
   async remove(id: number): Promise<any> {
     return this.databaseService.todo.delete({
       where: {
-        id: id
-      }
+        id: id,
+      },
     });
   }
 }
